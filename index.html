@@ -1,547 +1,264 @@
 <!DOCTYPE html>
-
 <html lang="ru">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Color Link: Obsidian Graph Style</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-
-        body { margin: 0; overflow: hidden; background: #050508; font-family: 'Segoe UI', sans-serif; }
-
-        canvas { display: block; cursor: crosshair; }
-
-        #ui { position: absolute; inset: 0; pointer-events: none; color: #e0e0e0; }
-
-        .panel { pointer-events: auto; background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(10px); border: 1px solid #1e3a8a; padding: 15px; border-radius: 8px; }
-
-        .instructions { position: absolute; bottom: 20px; left: 20px; font-size: 12px; opacity: 0.6; }
-
-    </style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Link Game</title>
+    <style>
+        /* Все стили теперь внутри файла, интернет не нужен */
+        body { margin: 0; overflow: hidden; background: #050508; font-family: sans-serif; color: white; }
+        canvas { display: block; cursor: crosshair; }
+        #ui { position: absolute; inset: 0; pointer-events: none; padding: 25px; }
+        .panel { 
+            pointer-events: auto; 
+            background: rgba(15, 15, 25, 0.9); 
+            border: 1px solid #1e40af; 
+            padding: 20px; 
+            border-radius: 12px;
+            display: inline-block;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .level-text { font-size: 24px; font-weight: 900; margin: 0; color: #fff; }
+        .sub-text { font-size: 10px; color: #60a5fa; letter-spacing: 2px; text-transform: uppercase; }
+        .stats { font-family: monospace; font-size: 12px; margin-top: 10px; color: #93c5fd; }
+        .instructions { position: absolute; bottom: 20px; left: 20px; font-size: 12px; color: #60a5fa; opacity: 0.7; }
+        
+        /* Экран победы */
+        #win-screen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        .win-panel {
+            background: #0f172a;
+            border: 2px solid #fbbf24;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover { background: #3b82f6; }
+    </style>
 </head>
-
 <body>
 
-  
+<div id="ui">
+    <div class="panel">
+        <div class="sub-text">Neural_Link_v3</div>
+        <div id="level-label" class="level-text">УРОВЕНЬ 1</div>
+        <div id="stats" class="stats">NODES: 0 | LINKS: 0</div>
+    </div>
 
-<div id="ui" class="flex flex-col items-start p-6">
-
-    <div class="panel">
-
-        <h1 class="text-xs font-bold tracking-widest text-blue-400 uppercase">Graph_Engine_v2</h1>
-
-        <p id="level-label" class="text-2xl font-black text-white">Уровень: 1</p>
-
-        <div id="stats" class="text-[10px] mt-2 text-blue-300 font-mono">NODES: 0 | LINKS: 0</div>
-
-    </div>
-
-  
-
-    <div class="instructions panel">
-
-        ЛКМ: Выбрать/Соединить | ПКМ/Зажать: Двигать камеру | Колесо: Зум
-
-    </div>
-
-  
-
-    <div id="win-screen" class="hidden fixed inset-0 flex items-center justify-center bg-black/60 pointer-events-auto">
-
-        <div class="panel text-center max-w-sm border-yellow-500">
-
-            <h2 class="text-3xl font-bold text-yellow-400 mb-2">СЕТЬ СТАБИЛИЗИРОВАНА</h2>
-
-            <p class="mb-6 text-sm">Все узлы графа успешно синхронизированы.</p>
-
-            <button onclick="game.nextLevel()" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold">ЗАГРУЗИТЬ СЛЕДУЮЩИЙ СЛОЙ</button>
-
-        </div>
-
-    </div>
-
+    <div class="instructions">
+        ЛКМ: Связать узлы | ПКМ / Shift + ЛКМ: Камера | Колесо: Зум
+    </div>
 </div>
 
-  
+<div id="win-screen">
+    <div class="win-panel">
+        <h2 style="color: #fbbf24; font-size: 28px;">ЦЕПЬ СТАБИЛЬНА</h2>
+        <p>Нейронная сеть текущего слоя синхронизирована.</p>
+        <button onclick="game.nextLevel()">СЛЕДУЮЩИЙ УЗЕЛ</button>
+    </div>
+</div>
 
 <canvas id="graphCanvas"></canvas>
 
-  
-
-<script type="module">
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-  
-
-    const firebaseConfig = JSON.parse(__firebase_config);
-
-    const app = initializeApp(firebaseConfig);
-
-    const auth = getAuth(app);
-
-    const db = getFirestore(app);
-
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'obsidian-graph-style';
-
-  
-
-    class Node {
-
-        constructor(id, type, x, y) {
-
-            this.id = id;
-
-            this.type = type;
-
-            this.pos = { x, y };
-
-            this.vel = { x: (Math.random()-0.5)*2, y: (Math.random()-0.5)*2 };
-
-            this.radius = 12; // Меньше размер — больше похоже на граф
-
-            this.connections = [];
-
-            this.color = { yellow: '#f1c40f', red: '#e74c3c', blue: '#3498db', white: '#fff' }[type];
-
-        }
-
-  
-
-        update(nodes, delta) {
-
-            // Физика графа (отталкивание)
-
-            nodes.forEach(other => {
-
-                if (other === this) return;
-
-                const dx = this.pos.x - other.pos.x;
-
-                const dy = this.pos.y - other.pos.y;
-
-                const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-
-                if (dist < 200) {
-
-                    const force = (200 - dist) * 0.01;
-
-                    this.vel.x += (dx / dist) * force;
-
-                    this.vel.y += (dy / dist) * force;
-
-                }
-
-            });
-
-  
-
-            // Трение
-
-            this.vel.x *= 0.95;
-
-            this.vel.y *= 0.95;
-
-  
-
-            this.pos.x += this.vel.x;
-
-            this.pos.y += this.vel.y;
-
-        }
-
-  
-
-        draw(ctx, camera) {
-
-            const screenX = (this.pos.x + camera.x) * camera.zoom + window.innerWidth/2;
-
-            const screenY = (this.pos.y + camera.y) * camera.zoom + window.innerHeight/2;
-
-            const r = this.radius * camera.zoom;
-
-  
-
-            if (screenX < -50 || screenX > window.innerWidth + 50 || screenY < -50 || screenY > window.innerHeight + 50) return;
-
-  
-
-            ctx.beginPath();
-
-            ctx.arc(screenX, screenY, r, 0, Math.PI*2);
-
-            ctx.fillStyle = this.color;
-
-            ctx.shadowBlur = this.connections.length > 0 ? 15 : 0;
-
-            ctx.shadowColor = this.color;
-
-            ctx.fill();
-
-            ctx.shadowBlur = 0;
-
-  
-
-            if (this.connections.length > 0) {
-
-                ctx.strokeStyle = '#fff';
-
-                ctx.lineWidth = 1;
-
-                ctx.stroke();
-
-            }
-
-        }
-
-    }
-
-  
-
-    class GraphGame {
-
-        constructor() {
-
-            this.canvas = document.getElementById('graphCanvas');
-
-            this.ctx = this.canvas.getContext('2d');
-
-            this.nodes = [];
-
-            this.camera = { x: 0, y: 0, zoom: 1 };
-
-            this.selected = null;
-
-            this.isDragging = false;
-
-            this.lastMouse = { x: 0, y: 0 };
-
-            this.level = 1;
-
-  
-
-            this.init();
-
-        }
-
-  
-
-        async init() {
-
-            this.resize();
-
-            window.addEventListener('resize', () => this.resize());
-
-            // Управление камерой
-
-            this.canvas.addEventListener('mousedown', (e) => {
-
-                if (e.button === 2 || e.shiftKey) {
-
-                    this.isDragging = true;
-
-                } else {
-
-                    this.handleInput(e);
-
-                }
-
-            });
-
-            window.addEventListener('mouseup', () => this.isDragging = false);
-
-            window.addEventListener('mousemove', (e) => {
-
-                if (this.isDragging) {
-
-                    this.camera.x += (e.clientX - this.lastMouse.x) / this.camera.zoom;
-
-                    this.camera.y += (e.clientY - this.lastMouse.y) / this.camera.zoom;
-
-                }
-
-                this.lastMouse = { x: e.clientX, y: e.clientY };
-
-            });
-
-            this.canvas.addEventListener('wheel', (e) => {
-
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-
-                this.camera.zoom = Math.min(Math.max(this.camera.zoom * delta, 0.1), 3);
-
-            });
-
-            this.canvas.oncontextmenu = () => false;
-
-  
-
-            const res = await signInAnonymously(auth);
-
-            this.user = res.user;
-
-            await this.loadProgress();
-
-            this.loadLevel(this.level);
-
-            this.animate();
-
-        }
-
-  
-
-        resize() {
-
-            this.canvas.width = window.innerWidth;
-
-            this.canvas.height = window.innerHeight;
-
-        }
-
-  
-
-        loadLevel(num) {
-
-            this.nodes = [];
-
-            this.selected = null;
-
-            document.getElementById('win-screen').classList.add('hidden');
-
-            document.getElementById('level-label').innerText = `Уровень: ${num}`;
-
-            const count = 10 + num * 5;
-
-            const types = ['yellow', 'red', 'blue', 'white'];
-
-            for (let i = 0; i < count; i++) {
-
-                const type = types[Math.floor(Math.random() * (num > 2 ? 4 : 3))];
-
-                this.nodes.push(new Node(i, type, (Math.random()-0.5)*1000, (Math.random()-0.5)*1000));
-
-            }
-
-        }
-
-  
-
-        async saveProgress() {
-
-            if (!this.user) return;
-
-            await setDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'save', 'state'), { level: this.level });
-
-        }
-
-  
-
-        async loadProgress() {
-
-            const snap = await getDoc(doc(db, 'artifacts', appId, 'users', this.user.uid, 'save', 'state'));
-
-            if (snap.exists()) this.level = snap.data().level;
-
-        }
-
-  
-
-        handleInput(e) {
-
-            const mx = (e.clientX - window.innerWidth/2) / this.camera.zoom - this.camera.x;
-
-            const my = (e.clientY - window.innerHeight/2) / this.camera.zoom - this.camera.y;
-
-  
-
-            const clicked = this.nodes.find(n => {
-
-                const d = Math.hypot(n.pos.x - mx, n.pos.y - my);
-
-                return d < n.radius + 10;
-
-            });
-
-  
-
-            if (clicked) {
-
-                if (!this.selected) {
-
-                    this.selected = clicked;
-
-                } else if (this.selected !== clicked) {
-
-                    this.connect(this.selected, clicked);
-
-                    this.selected = null;
-
-                }
-
-            } else {
-
-                this.selected = null;
-
-            }
-
-        }
-
-  
-
-        connect(a, b) {
-
-            if (a.type === b.type || a.type === 'white' || b.type === 'white') {
-
-                if (!a.connections.includes(b.id)) {
-
-                    a.connections.push(b.id);
-
-                    b.connections.push(a.id);
-
-                    this.checkWin();
-
-                }
-
-            }
-
-        }
-
-  
-
-        checkWin() {
-
-            if (this.nodes.every(n => n.connections.length > 0)) {
-
-                document.getElementById('win-screen').classList.remove('hidden');
-
-            }
-
-        }
-
-  
-
-        nextLevel() {
-
-            this.level++;
-
-            this.saveProgress();
-
-            this.loadLevel(this.level);
-
-        }
-
-  
-
-        animate() {
-
-            this.ctx.fillStyle = '#050508';
-
-            this.ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
-
-  
-
-            document.getElementById('stats').innerText = `NODES: ${this.nodes.length} | LINKS: ${this.nodes.reduce((a,b)=>a+b.connections.length,0)/2}`;
-
-  
-
-            // Отрисовка связей
-
-            this.ctx.lineWidth = 1 * this.camera.zoom;
-
-            this.nodes.forEach(n => {
-
-                n.connections.forEach(cid => {
-
-                    const target = this.nodes.find(t => t.id === cid);
-
-                    if (target && n.id < target.id) {
-
-                        const x1 = (n.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
-
-                        const y1 = (n.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
-
-                        const x2 = (target.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
-
-                        const y2 = (target.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
-
-                        this.ctx.beginPath();
-
-                        this.ctx.moveTo(x1, y1);
-
-                        this.ctx.lineTo(x2, y2);
-
-                        this.ctx.strokeStyle = n.type === 'white' ? target.color : n.color;
-
-                        this.ctx.globalAlpha = 0.4;
-
-                        this.ctx.stroke();
-
-                        this.ctx.globalAlpha = 1.0;
-
-                    }
-
-                });
-
-            });
-
-  
-
-            if (this.selected) {
-
-                const sx = (this.selected.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
-
-                const sy = (this.selected.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
-
-                this.ctx.beginPath();
-
-                this.ctx.arc(sx, sy, (this.selected.radius + 10) * this.camera.zoom, 0, Math.PI*2);
-
-                this.ctx.strokeStyle = '#3b82f6';
-
-                this.ctx.stroke();
-
-            }
-
-  
-
-            this.nodes.forEach(n => {
-
-                n.update(this.nodes, 1/60);
-
-                n.draw(this.ctx, this.camera);
-
-            });
-
-  
-
-            requestAnimationFrame(() => this.animate());
-
-        }
-
-    }
-
-  
-
-    const game = new GraphGame();
-
-    window.game = game;
-
-  
-
+<script>
+    // Автономная логика без Firebase
+    class Node {
+        constructor(id, type, x, y) {
+            this.id = id;
+            this.type = type;
+            this.pos = { x, y };
+            this.vel = { x: (Math.random()-0.5)*2, y: (Math.random()-0.5)*2 };
+            this.radius = 12;
+            this.connections = [];
+            this.color = { yellow: '#fbbf24', red: '#ef4444', blue: '#3b82f6', white: '#ffffff' }[type];
+            this.pulse = Math.random() * 10;
+        }
+
+        update(nodes) {
+            this.pulse += 0.02;
+            nodes.forEach(other => {
+                if (other === this) return;
+                const dx = this.pos.x - other.pos.x;
+                const dy = this.pos.y - other.pos.y;
+                const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                if (dist < 150) {
+                    const force = (150 - dist) * 0.005;
+                    this.vel.x += (dx / dist) * force;
+                    this.vel.y += (dy / dist) * force;
+                }
+            });
+            this.vel.x *= 0.95;
+            this.vel.y *= 0.95;
+            this.pos.x += this.vel.x;
+            this.pos.y += this.vel.y;
+        }
+
+        draw(ctx, camera) {
+            const screenX = (this.pos.x + camera.x) * camera.zoom + window.innerWidth/2;
+            const screenY = (this.pos.y + camera.y) * camera.zoom + window.innerHeight/2;
+            const r = this.radius * camera.zoom;
+
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, r, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            if (this.connections.length > 0) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2 * camera.zoom;
+                ctx.stroke();
+            }
+        }
+    }
+
+    class GraphGame {
+        constructor() {
+            this.canvas = document.getElementById('graphCanvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.nodes = [];
+            this.camera = { x: 0, y: 0, zoom: 1 };
+            this.selected = null;
+            this.isDragging = false;
+            this.lastMouse = { x: 0, y: 0 };
+            this.level = 1;
+            this.time = 0;
+
+            window.addEventListener('resize', () => this.resize());
+            this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+            window.addEventListener('mouseup', () => this.isDragging = false);
+            window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+            this.canvas.addEventListener('wheel', (e) => {
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                this.camera.zoom = Math.min(Math.max(this.camera.zoom * delta, 0.1), 3);
+            });
+            this.canvas.oncontextmenu = () => false;
+
+            this.resize();
+            this.loadLevel(1);
+            this.animate();
+        }
+
+        resize() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+        }
+
+        loadLevel(num) {
+            this.nodes = [];
+            this.selected = null;
+            this.level = num;
+            document.getElementById('win-screen').style.display = 'none';
+            document.getElementById('level-label').innerText = `УРОВЕНЬ ${num}`;
+            
+            const count = 10 + num * 3;
+            const types = ['yellow', 'red', 'blue', 'white'];
+            for (let i = 0; i < count; i++) {
+                const type = types[Math.floor(Math.random() * (num > 2 ? 4 : 3))];
+                this.nodes.push(new Node(i, type, (Math.random()-0.5)*1000, (Math.random()-0.5)*1000));
+            }
+        }
+
+        handleMouseDown(e) {
+            if (e.button === 2 || e.shiftKey) {
+                this.isDragging = true;
+            } else {
+                const mx = (e.clientX - window.innerWidth/2) / this.camera.zoom - this.camera.x;
+                const my = (e.clientY - window.innerHeight/2) / this.camera.zoom - this.camera.y;
+                const clicked = this.nodes.find(n => Math.hypot(n.pos.x - mx, n.pos.y - my) < n.radius + 15);
+
+                if (clicked) {
+                    if (!this.selected) this.selected = clicked;
+                    else if (this.selected !== clicked) {
+                        this.connect(this.selected, clicked);
+                        this.selected = null;
+                    }
+                } else this.selected = null;
+            }
+        }
+
+        handleMouseMove(e) {
+            if (this.isDragging) {
+                this.camera.x += (e.clientX - this.lastMouse.x) / this.camera.zoom;
+                this.camera.y += (e.clientY - this.lastMouse.y) / this.camera.zoom;
+            }
+            this.lastMouse = { x: e.clientX, y: e.clientY };
+        }
+
+        connect(a, b) {
+            if (a.type === b.type || a.type === 'white' || b.type === 'white') {
+                if (!a.connections.includes(b.id)) {
+                    a.connections.push(b.id);
+                    b.connections.push(a.id);
+                    if (this.nodes.every(n => n.connections.length > 0)) {
+                        document.getElementById('win-screen').style.display = 'flex';
+                    }
+                }
+            }
+        }
+
+        nextLevel() {
+            this.loadLevel(this.level + 1);
+        }
+
+        animate() {
+            this.time += 0.02;
+            this.ctx.fillStyle = '#050508';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            document.getElementById('stats').innerText = `NODES: ${this.nodes.length} | LINKS: ${this.nodes.reduce((a,b)=>a+b.connections.length,0)/2}`;
+
+            this.nodes.forEach(n => {
+                n.connections.forEach(cid => {
+                    const target = this.nodes.find(t => t.id === cid);
+                    if (target && n.id < target.id) {
+                        const x1 = (n.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
+                        const y1 = (n.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
+                        const x2 = (target.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
+                        const y2 = (target.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(x1, y1);
+                        this.ctx.lineTo(x2, y2);
+                        this.ctx.strokeStyle = n.type === 'white' ? target.color : n.color;
+                        this.ctx.globalAlpha = 0.3;
+                        this.ctx.stroke();
+                        this.ctx.globalAlpha = 1.0;
+                    }
+                });
+            });
+
+            if (this.selected) {
+                const sx = (this.selected.pos.x + this.camera.x) * this.camera.zoom + window.innerWidth/2;
+                const sy = (this.selected.pos.y + this.camera.y) * this.camera.zoom + window.innerHeight/2;
+                this.ctx.beginPath();
+                this.ctx.arc(sx, sy, 20 * this.camera.zoom, 0, Math.PI*2);
+                this.ctx.strokeStyle = '#3b82f6';
+                this.ctx.stroke();
+            }
+
+            this.nodes.forEach(n => { n.update(this.nodes); n.draw(this.ctx, this.camera); });
+            requestAnimationFrame(() => this.animate());
+        }
+    }
+
+    const game = new GraphGame();
 </script>
-
 </body>
-
 </html>
